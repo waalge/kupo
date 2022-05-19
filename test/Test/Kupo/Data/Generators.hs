@@ -15,6 +15,7 @@ import Kupo.Data.Cardano
     , Block
     , pattern BlockPoint
     , DatumHash
+    , Datum
     , HeaderHash
     , OutputIndex
     , OutputReference
@@ -26,6 +27,7 @@ import Kupo.Data.Cardano
     , digestSize
     , mkOutputReference
     , unsafeDatumHashFromBytes
+    , unsafeDataFromBytes
     , unsafeHeaderHashFromBytes
     , unsafeTransactionIdFromBytes
     , unsafeValueFromList
@@ -73,6 +75,11 @@ genDatumHash :: Gen DatumHash
 genDatumHash =
     unsafeDatumHashFromBytes . BS.pack <$> vector (digestSize @Blake2b_256)
 
+genDatum :: Gen Datum
+genDatum = pure $ unsafeDataFromBytes (BS.pack [216, 121, 128])
+-- FIXME ^^ This is a placeholder 
+    
+
 genHeaderHash :: Gen (HeaderHash Block)
 genHeaderHash = do
     unsafeHeaderHashFromBytes . BS.pack <$> vector (digestSize @Blake2b_256)
@@ -111,6 +118,10 @@ genResult = Result
     <*> genAddress
     <*> genValue
     <*> frequency [(1, pure Nothing), (5, Just <$> genDatumHash)]
+    <*> frequency [(1, pure Nothing), (5, Just <$> genDatum)] 
+    -- FIXME :: 
+    --      - datum should exist only if hash exists
+    --      - hash should be of datum when it exists
     <*> genNonGenesisPoint
 
 genSlotNo :: Gen SlotNo

@@ -111,6 +111,8 @@ module Kupo.Data.Cardano
     , Datum
     , datumToJson
     , getDatum
+    , dataToBytes
+    , unsafeDataFromBytes
     ) where
 
 import Kupo.Prelude
@@ -204,6 +206,8 @@ import qualified Data.Map as Map
 import qualified Data.Text as T
 import qualified Data.Text.Read as T
 import qualified Ouroboros.Network.Block as Ouroboros
+
+import Kupo.CardanoExt.Data (BinaryData(..), dataToBinaryData, binaryDataToData)
 
 -- IsBlock
 
@@ -876,9 +880,18 @@ type Datum = Datum' (AlonzoEra StandardCrypto)
 type Datum' crypto =
     Ledger.Alonzo.Data crypto
 
-
 datumToJson
     :: Datum
     -> Json.Encoding
 datumToJson (Ledger.Data p) =
     (Json.text . encodeBase16 . serialize') p
+
+dataToBytes :: Ledger.Data era -> ByteString 
+dataToBytes d = (fromShort sbs)
+    where BinaryData sbs = dataToBinaryData d 
+
+unsafeDataFromBytes :: ByteString -> Ledger.Data (AlonzoEra StandardCrypto) 
+unsafeDataFromBytes bs = binaryDataToData bd
+    where 
+          bd :: BinaryData (AlonzoEra StandardCrypto)
+          bd = BinaryData (toShort bs) 

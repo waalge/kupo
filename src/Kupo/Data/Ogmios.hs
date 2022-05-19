@@ -86,6 +86,8 @@ instance IsBlock PartialBlock where
     mapMaybeOutputs fn (PartialTransaction outs) =
         mapMaybe (uncurry fn) outs
 
+    mapMaybeWits = error "not implemented for ogmios"
+
 -- RequestNextResponse
 
 data RequestNextResponse
