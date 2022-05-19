@@ -1,3 +1,5 @@
+/.stack-work
+/dist
 ## Generated
 *.sqlite3
 

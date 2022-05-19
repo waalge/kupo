@@ -89,6 +89,7 @@ data Input = Input
     , address :: Text
     , value :: ByteString
     , datumHash :: Maybe ByteString
+    , datum :: Maybe ByteString
     , headerHash :: ByteString
     , slotNo :: Word64
     } deriving (Show)
@@ -220,6 +221,7 @@ mkDatabase (fromIntegral -> longestRollback) bracketConnection = Database
                 , SQLText address
                 , SQLBlob value
                 , maybe SQLNull SQLBlob datumHash
+                , maybe SQLNull SQLBlob datum
                 , SQLBlob headerHash
                 , SQLInteger (fromIntegral slotNo)
                 ]
@@ -234,13 +236,17 @@ mkDatabase (fromIntegral -> longestRollback) bracketConnection = Database
         let matchMaybeDatumHash = \case
                 SQLBlob datumHash -> Just datumHash
                 _ -> Nothing
-        let qry = "SELECT output_reference, address, value, datum_hash, header_hash, slot_no, LENGTH(address) as len \
+        let matchMaybeDatum = \case
+                SQLBlob datum -> Just datum
+                _ -> Nothing
+        let qry = "SELECT output_reference, address, value, datum_hash, datum, header_hash, slot_no, LENGTH(address) as len \
                   \FROM inputs WHERE address " <> addressLike <> " ORDER BY slot_no DESC"
         fold_ conn (Query qry) () $ \() -> \case
             [ SQLBlob outputReference
                 , SQLText address
                 , SQLBlob value
                 , matchMaybeDatumHash -> datumHash
+                , matchMaybeDatum -> datum
                 , SQLBlob headerHash
                 , SQLInteger (fromIntegral -> slotNo)
                 , _ -- LENGTH(address)
@@ -397,6 +403,7 @@ migrations =
         , $(embedFile "db/002.sql")
         , $(embedFile "db/003.sql")
         , $(embedFile "db/004.sql")
+        , $(embedFile "db/005.sql") -- Datum hash table
         ]
     ]
   where

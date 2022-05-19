@@ -28,12 +28,14 @@ import Kupo.Prelude
 
 import Cardano.Crypto.Hash
     ( pattern UnsafeHash )
+import qualified Cardano.Ledger.Alonzo.Data as Ledger
 import Cardano.Ledger.Alonzo
     ( AlonzoEra )
 import Cardano.Ledger.Crypto
     ( StandardCrypto )
 import Cardano.Slotting.Slot
     ( SlotNo (..) )
+import Kupo.Data.Cardano (Datum(..)) 
 import Kupo.Data.Pattern
     ( MatchBootstrap (..)
     , Pattern (..)
@@ -97,11 +99,15 @@ resultFromRow row = Result
     , address = (unsafeAddressFromBytes . unsafeDecodeBase16)  (DB.address row)
     , value = unsafeDeserialize' (DB.value row)
     , datumHash = unsafeDeserialize' <$> (DB.datumHash row)
+    , datum = Nothing -- unsafeDatumFromBytes  <$> (DB.datumHash row)
     , point = pointFromRow (DB.Checkpoint (DB.headerHash row) (DB.slotNo row))
     }
   where
     unsafeAddressFromBytes =
         fromMaybe (error "unsafeAddressFromBytes") . Ledger.deserialiseAddr
+
+    --- unsafeDatumFromBytes :: ByteString -> Datum 
+    --- unsafeDatumFromBytes = Ledger.Data . unsafeDeserialize' 
 
 resultToRow
     :: Result
@@ -111,6 +117,7 @@ resultToRow Result{..} = DB.Input
     , DB.address = encodeBase16 (Ledger.serialiseAddr address)
     , DB.value = serialize' value
     , DB.datumHash = serialize' <$> datumHash
+    , DB.datum = serialize' <$> datum
     , DB.headerHash = checkpointHeaderHash
     , DB.slotNo = checkpointSlotNo
     }

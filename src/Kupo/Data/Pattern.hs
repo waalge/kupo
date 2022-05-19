@@ -62,6 +62,11 @@ import Kupo.Data.Cardano
     , unsafeGetPointHeaderHash
     , valueToJson
     , valueToJson
+    ---
+    , Datum
+    , TxWitness
+    , getDatum
+    , datumToJson
     )
 
 import qualified Codec.Binary.Bech32 as Bech32
@@ -250,6 +255,7 @@ data Result = Result
     , address :: Address
     , value :: Value
     , datumHash :: Maybe DatumHash
+    , datum :: Maybe Datum
     , point :: Point Block
     } deriving (Show, Eq)
 
@@ -267,6 +273,8 @@ resultToJson Result{..} = Json.pairs $ mconcat
         (valueToJson value)
     , Json.pair "datum_hash"
         (maybe Json.null_ datumHashToJson datumHash)
+    , Json.pair "datum"
+        (maybe Json.null_ datumToJson datum)
     , Json.pair "slot_no"
         (slotNoToJson (getPointSlotNo point))
     , Json.pair "header_hash"
@@ -292,20 +300,24 @@ matchBlock transform ms blk =
   where
     fn :: Point Block -> BlockBody block -> [result] -> [result]
     fn pt tx results =
-        concatMap (flip (mapMaybeOutputs @block) tx . match pt) ms ++ results
+        concatMap (flip (mapMaybeWits @block) tx . match pt) ms ++ results
 
     match
         :: Point Block
         -> Pattern
         -> OutputReference
         -> Output
+        -> TxWitness
         -> Maybe result
-    match pt m outputReference out = do
+    match pt m outputReference out wit = do
         getAddress out `matching` m
         pure $ transform Result
             { outputReference
             , address = getAddress out
             , value = getValue out
-            , datumHash = getDatumHash out
+            , datumHash = dh
+            , datum = getDatum dh wit 
             , point = pt
             }
+            where
+                dh = getDatumHash out

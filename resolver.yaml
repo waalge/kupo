@@ -32,7 +32,7 @@ packages:
 - Unique-0.4.7.9
 
 - git: https://github.com/input-output-hk/cardano-base
-  commit: 41545ba3ac6b3095966316a99883d678b5ab8da8
+  commit: 20bd513b7ac9dcf0749f0ceb1df3d6b07a1b57c8
   subdirs:
   - base-deriving-via
   - binary
@@ -49,8 +49,10 @@ packages:
   commit: f73079303f663e028288f9f4a9e08bcca39a923e
 
 - git: https://github.com/input-output-hk/cardano-ledger
-  commit: 1a9ec4ae9e0b09d54e49b2a40c4ead37edadcce5
+  commit: 9269db9359e98f83ad524502dd66d3d9e299aead
   subdirs:
+  - eras/babbage/impl
+  - eras/babbage/test-suite
   - eras/alonzo/impl
   - eras/alonzo/test-suite
   - eras/byron/chain/executable-spec
@@ -106,7 +108,7 @@ packages:
   - tracer-transformers
 
 - git: https://github.com/input-output-hk/ouroboros-network
-  commit: 4fac197b6f0d2ff60dc3486c593b68dc00969fbf
+  commit: 1b02c57b786d417fcda6985be9472a1bb620fed5
   subdirs:
   - io-classes
   - io-sim
@@ -130,14 +132,17 @@ packages:
   - typed-protocols-cborg
   - typed-protocols-examples
 
-- git: https://github.com/CardanoSolutions/plutus
-  commit: ce0ab0ae72e0995ba23f29247e97c1beeb466905
+    # - git: https://github.com/input-output-hk/plutus
+    #   commit: ccf5bcb99ffe054dc8cd5626723f64e02708dbae
+- git: /home/waalge/clones/cardano/plutus
+  commit: 0b95961c5b6a86211f8a96a3d0c2fbc00a60c05e
   subdirs:
   - plutus-core
   - plutus-core-testlib
   - plutus-ledger-api
   - plutus-tx
   - plutus-tx-testlib
+  - index-envs
   - prettyprinter-configurable
   - stubs/plutus-ghc-stub
   - word-array

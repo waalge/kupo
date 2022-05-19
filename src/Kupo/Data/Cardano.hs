@@ -45,6 +45,7 @@ module Kupo.Data.Cardano
     , getDatumHash
     , getValue
 
+
     -- * Value
     , Value
     , unsafeValueFromList
@@ -102,9 +103,19 @@ module Kupo.Data.Cardano
 
       -- * WithOrigin
     , WithOrigin (..)
+
+      -- * TxWitness
+    , TxWitness
+
+    -- * Datum
+    , Datum
+    , datumToJson
+    , getDatum
     ) where
 
 import Kupo.Prelude
+
+import GHC.Records (getField) 
 
 import Cardano.Crypto.Hash
     ( Blake2b_224
@@ -174,6 +185,7 @@ import qualified Cardano.Ledger.Alonzo.Data as Ledger
 import qualified Cardano.Ledger.Alonzo.Tx as Ledger.Alonzo
 import qualified Cardano.Ledger.Alonzo.TxBody as Ledger.Alonzo
 import qualified Cardano.Ledger.Alonzo.TxSeq as Ledger.Alonzo
+import qualified Cardano.Ledger.Alonzo.TxWitness as Ledger.Alonzo
 import qualified Cardano.Ledger.Block as Ledger
 import qualified Cardano.Ledger.Core as Ledger.Core
 import qualified Cardano.Ledger.Credential as Ledger
@@ -210,6 +222,11 @@ class IsBlock (block :: Type) where
 
     mapMaybeOutputs
         :: (OutputReference -> Output -> Maybe result)
+        -> BlockBody block
+        -> [result]
+
+    mapMaybeWits
+        :: (OutputReference -> Output -> TxWitness -> Maybe result)
         -> BlockBody block
         -> [result]
 
@@ -337,7 +354,95 @@ instance IsBlock Block where
                         Just result ->
                             result : results
 
--- TransactionId
+    mapMaybeWits
+        :: forall result. ()
+        => (OutputReference -> Output -> TxWitness -> Maybe result)
+        -> Transaction
+        -> [result]
+    mapMaybeWits fn = \case
+        TransactionByron tx (Ledger.Byron.hashToBytes -> bytes) ->
+            let
+                txId = Ledger.TxId $ Ledger.unsafeMakeSafeHash $ UnsafeHash $ toShort bytes
+                out :| outs = Ledger.Byron.txOutputs tx
+             in
+                traverseAndTransformByron fromByronOutput txId 0 (out : outs)
+        TransactionShelley tx ->
+            let
+                body = Ledger.Shelley.body tx
+                txId = Ledger.txid @(ShelleyEra StandardCrypto) body
+                outs = Ledger.Shelley._outputs body
+             in
+                traverseAndTransform (fromShelleyOutput inject) txId mempty 0 outs 
+        TransactionAllegra tx ->
+            let
+                body = Ledger.Shelley.body tx
+                txId = Ledger.txid @(AllegraEra StandardCrypto) body
+                outs = Ledger.MaryAllegra.outputs' body
+             in
+                traverseAndTransform (fromShelleyOutput inject) txId mempty 0 outs 
+        TransactionMary tx ->
+            let
+                body = Ledger.Shelley.body tx
+                txId = Ledger.txid @(MaryEra StandardCrypto) body
+                outs = Ledger.MaryAllegra.outputs' body
+             in
+                traverseAndTransform (fromShelleyOutput identity) txId mempty 0 outs 
+        TransactionAlonzo tx ->
+            let
+                body = Ledger.Alonzo.body tx
+                wits = Ledger.Alonzo.wits tx
+                txId = Ledger.txid @(AlonzoEra StandardCrypto) body
+                outs = Ledger.Alonzo.outputs' body
+             in
+                case Ledger.Alonzo.isValid tx of
+                    Ledger.Alonzo.IsValid True ->
+                        traverseAndTransform identity txId wits 0 outs 
+                    _ ->
+                        []
+      where
+        traverseAndTransformByron
+            :: forall output. ()
+            => (output -> Output)
+            -> TransactionId
+            -> Natural
+            -> [output]
+            -> [result]
+        traverseAndTransformByron transform txId ix = \case
+            [] -> []
+            (out:rest) ->
+                let
+                    outputRef = Ledger.TxIn txId ix
+                    results   = traverseAndTransformByron transform txId (succ ix) rest
+                 in
+                    case fn outputRef (transform out) mempty of
+                        Nothing ->
+                            results
+                        Just result ->
+                            result : results
+
+        traverseAndTransform
+            :: forall output. ()
+            => (output -> Output)
+            -> TransactionId
+            -> TxWitness
+            -> Natural
+            -> StrictSeq output
+            -> [result]
+        traverseAndTransform transform txId wit ix = \case
+            Empty -> []
+            output :<| rest ->
+                let
+                    outputRef = Ledger.TxIn txId ix
+                    results   = traverseAndTransform transform txId wit (succ ix) rest 
+                 in
+                    case fn outputRef (transform output) wit of
+                        Nothing ->
+                            results
+                        Just result ->
+                            result : results
+
+
+          -- TransactionId
 
 type TransactionId =
     TransactionId' StandardCrypto
@@ -752,3 +857,28 @@ sizeInvariant predicate bytes
         bytes
     | otherwise =
         error ("predicate failed for bytes: " <> show bytes)
+
+-- Witness
+
+type TxWitness = Ledger.Alonzo.TxWitness (AlonzoEra StandardCrypto) 
+
+getDatum 
+    :: Maybe DatumHash
+    -> TxWitness
+    -> Maybe Datum 
+getDatum (Just dh) wit = Map.lookup dh (Ledger.Alonzo.unTxDats $ getField @"txdats" wit) 
+getDatum Nothing _ = Nothing 
+
+-- Datum
+
+type Datum = Datum' (AlonzoEra StandardCrypto)
+
+type Datum' crypto =
+    Ledger.Alonzo.Data crypto
+
+
+datumToJson
+    :: Datum
+    -> Json.Encoding
+datumToJson (Ledger.Data p) =
+    (Json.text . encodeBase16 . serialize') p
