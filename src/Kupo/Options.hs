@@ -66,7 +66,7 @@ import Kupo.Control.MonadTime
     , secondsToDiffTime
     )
 import Kupo.Data.Cardano
-    (pointFromText
+    ( pointFromText
     )
 import Kupo.Data.Configuration
     ( ChainProducer (..)
@@ -304,7 +304,7 @@ sinceOption = option (maybeReader rdr) $ mempty
         ])
   where
     rdr :: String -> Maybe Since
-    rdr "tipx" = pure SinceTip
+    rdr "tip" = pure SinceTip
     rdr s = fmap SincePoint (pointFromText $ toText s)
 
 -- | [--match=PATTERN]
