@@ -186,6 +186,7 @@ import qualified Data.Text.Lazy.Builder as TL
 import qualified Database.SQLite.Simple as Sqlite
 import qualified Kupo.Data.Configuration as Configuration
 import qualified Kupo.Data.Database as DB
+import Kupo.Data.Http.JoinScripts (JoinScripts(..))
 
 data DatabaseFile = OnDisk !FilePath | InMemory !(Maybe FilePath)
     deriving (Generic, Eq, Show)
@@ -490,7 +491,7 @@ copyDatabase (tr, progress) fromDir intoDir patterns = do
                     traceWith tr $ DatabaseImportTable { table = "inputs", pattern = patternToText pattern_ }
                     copyTable
                         (runTransaction from $ countInputs from pattern_)
-                        (runTransaction from . foldInputs from pattern_ Whole NoStatusFlag Asc)
+                        (runTransaction from . foldInputs from pattern_ Whole NoStatusFlag NoJoinScripts Asc)
                         (runTransaction into . insertInputs into)
                         DB.resultToRow
                     traceWith tr $ DatabaseImportTable { table = "policies", pattern = patternToText pattern_ }
@@ -640,12 +641,12 @@ mkDatabase tr mode longestRollback bracketConnection = Database
             traceExecute tr conn pruneInputsQry [ SQLInteger (fromIntegral longestRollback) ]
         changes conn
 
-    , foldInputs = \pattern_ slotRange statusFlag sortDirection yield -> ReaderT $ \conn -> do
+    , foldInputs = \pattern_ slotRange statusFlag joinScripts sortDirection yield -> ReaderT $ \conn -> do
         -- TODO: Allow resolving datums / scripts on demand through LEFT JOIN
         --
         -- See [#21](https://github.com/CardanoSolutions/kupo/issues/21)
-        let (datum, refScript) = (Nothing, Nothing)
-        Sqlite.fold_ conn (foldInputsQry pattern_ slotRange statusFlag sortDirection) () $ \() -> \case
+        let datum = Nothing
+        Sqlite.fold_ conn (foldInputsQry pattern_ slotRange statusFlag joinScripts sortDirection) () $ \() -> \case
             [  SQLBlob extendedOutputReference
              , SQLText address
              , SQLBlob value
@@ -655,6 +656,7 @@ mkDatabase tr mode longestRollback bracketConnection = Database
              , SQLBlob createdAtHeaderHash
              , matchMaybeWord64 -> spentAtSlotNo
              , matchMaybeBytes -> spentAtHeaderHash
+             , matchMaybeScript refScript -> refScript
              ] ->
                 yield (DB.resultFromRow DB.Input{..})
             (xs :: [SQLData]) ->
@@ -902,9 +904,10 @@ foldInputsQry
     :: Pattern
     -> Range SlotNo
     -> StatusFlag
+    -> JoinScripts
     -> SortDirection
     -> Query
-foldInputsQry pattern_ slotRange statusFlag sortDirection =
+foldInputsQry pattern_ slotRange statusFlag joinScripts sortDirection =
     Query $ "SELECT \
       \inputs.ext_output_reference, inputs.address, inputs.value, \
       \inputs.datum_info, inputs.script_hash, \
@@ -917,6 +920,9 @@ foldInputsQry pattern_ slotRange statusFlag sortDirection =
         NoStatusFlag -> ""
         OnlyUnspent -> " WHERE spentAt.header_hash IS NULL"
         OnlySpent -> " WHERE spentAt.header_hash IS NOT NULL"
+    <> case joinScripts of
+        NoJoinScripts -> ""
+        JoinScripts -> " LEFT JOIN scripts AS script On inputs.scriptHash = scripts.hash "
     <> " ORDER BY \
        \inputs.created_at " <> ordering <> ", \
        \inputs.transaction_index " <> ordering <> ", \
@@ -1103,6 +1109,12 @@ withTotalChanges conn between = do
     between
     n2 <- totalChanges conn
     return (n2 - n1)
+
+matchMaybeScript :: SQLData -> Maybe Script
+matchMaybeScript = \case
+    SQLBlob script -> Just script
+    _notSQLBlob -> Nothing
+{-# INLINABLE matchMaybeScript #-}
 
 matchMaybeBytes :: SQLData -> Maybe ByteString
 matchMaybeBytes = \case

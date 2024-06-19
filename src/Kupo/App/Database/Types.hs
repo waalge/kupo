@@ -63,6 +63,7 @@ import Control.Monad.Fail
     ()
 
 import qualified Kupo.Data.Database as DB
+import Kupo.Data.Http.JoinScripts (JoinScripts)
 
 data ConnectionType = ReadOnly | ReadWrite | WriteOnly
     deriving (Generic, Eq, Show)
@@ -94,6 +95,7 @@ data Database (m :: Type -> Type) = Database
         :: Pattern
         -> Range SlotNo
         -> StatusFlag
+        -> JoinScripts
         -> SortDirection
         -> (Result -> m ())
         -> DBTransaction m ()

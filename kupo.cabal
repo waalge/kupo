@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.35.0.
+-- This file has been generated from package.yaml by hpack version 0.36.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -109,6 +109,7 @@ library
       Kupo.Data.Http.FilterMatchesBy
       Kupo.Data.Http.ForcedRollback
       Kupo.Data.Http.GetCheckpointMode
+      Kupo.Data.Http.JoinScripts
       Kupo.Data.Http.OrderMatchesBy
       Kupo.Data.Http.Response
       Kupo.Data.Http.SlotRange

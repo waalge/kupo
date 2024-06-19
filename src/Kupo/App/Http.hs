@@ -176,6 +176,7 @@ import qualified Kupo.Data.Http.Error as Errors
 import qualified Network.HTTP.Types.Header as Http
 import qualified Network.HTTP.Types.URI as Http
 import qualified Network.Wai.Handler.Warp as Warp
+import Kupo.Data.Http.JoinScripts (joinScriptsFromQueryParams)
 
 --
 -- Server
@@ -565,6 +566,9 @@ handleGetMatches headers patternQuery queryParams Database{..} = handleRequest $
     sortDirection <- mkSortDirection <$> orderMatchesBy queryParams
         `orAbort` Errors.invalidSortDirection
 
+    joinScripts <- joinScriptsFromQueryParams queryParams
+        `orAbort` Errors.invalidStatusFlag
+
     pure $ responseStreamJson headers resultToJson $ \yield done -> do
         let assertPointExists :: Point -> DBTransaction IO ()
             assertPointExists requested = do
@@ -579,7 +583,7 @@ handleGetMatches headers patternQuery queryParams Database{..} = handleRequest $
                         throwIO ErrPointNotFound{requested}
         runTransaction $ do
             slotRange <- intoSlotRange assertPointExists assertPointExists pointRange
-            foldInputs pattern_ slotRange statusFlag sortDirection (yieldIf yield)
+            foldInputs pattern_ slotRange statusFlag joinScripts sortDirection (yieldIf yield)
         done
   where
     -- NOTE: kupo does support two different ways for fetching results, via query parameters or via
